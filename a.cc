@@ -2,20 +2,108 @@
 #include <stdlib.h>
 #include <ucontext.h> // need #define _XOPEN_SOURCE in MacOS
 #include <stdio.h>
+#include <memory>
+#include <functional>
+
 #define d cout << endl;
 #define D(x) cout << #x << " = " << x << endl;
 #define DD(x, y) cout << #x << " = " << x << ", " << #y << " = " << y << endl;
-using namespace std;
 
-// class Fiber : public std::enable_shared_from_this<Fiber> {
+class Fiber : public std::enable_shared_from_this<Fiber> {
+public:
+    typedef std::shared_ptr<Fiber> ptr;
 
-// };
+    enum State {
+        READY,
+        RUNNING,
+        TERM
+    };
+    
+private:
+    /****************************************************
+     *  @brief 构造函数，创建用户协程
+     *  @param cb 协程入口函数
+     *  @param stacksize 协程栈大小
+     *  @param run_in_scheduler 是否参与调度器调度，默认为true
+     ****************************************************/
+    Fiber(std::function<void()> cb, size_t stacksize = 0, bool run_in_scheduler = true);
+
+    /**
+    *   @brief 重置协程状态和入口函数，复用栈空间
+    *   @param cb 协程入口函数
+    */
+    void reset(std::function<void()> cb);
+
+    /**
+    *   @brief 将当前协程切换到执行状态
+    *   @details 当前协程和正在执行的协程进行交换，前者状态变为 READY，后者状态变为 RUNNING
+    */
+    void resume();
+    /**
+    *   @brief 当前协程让出执行权
+    *   @details 当前协程和上次 resume 时到后台的协程进行交换，前者状态变为 READY，后者状态变为 RUNNING
+    */
+    void yield();
+
+    /**
+    *   @brief 获取当前协程ID
+    */
+   uint64_t getId() const { return m_id; }
+
+    /**
+     *   @brief 获取当前协程状态
+     */
+    State getState() const { return m_state; }
+public:
+
+    /**
+     *   @brief  设置当前正在运行的协程，即设置线程局部变量 t_fiber 的值。
+     */
+   static void SetThis(Fiber* f);
+
+    /**
+     * @brief 返回当前线程正在执⾏的协程
+     * @details 如果当前线程还未创建协程，则创建线程的第⼀个协程，
+     * 且该协程为当前线程的主协程，其他协程都通过这个协程来调度，也就是说，其他协程
+     * 结束时,都要切回到主协程，由主协程重新选择新的协程进⾏resume
+     * @attention 线程如果要创建协程，那么应该⾸先执⾏⼀下Fiber::GetThis()操作，以初始化主函数协程
+     */
+    static Fiber::ptr GetThis();
+
+    /**
+     * @brief 获取总协程数
+     */
+    static uint64_t TotalFibers();
+
+    /**
+     * @brief 协程⼊⼝函数
+     */
+    static void MainFunc();
+
+    /**
+     * @brief 获取当前协程id
+     */
+    static uint64_t GetFiberId();
+
+private:
+    /// 协程id
+    uint64_t m_id = 0;
+    /// 协程栈⼤⼩
+    uint32_t m_stacksize = 0;
+    /// 协程状态
+    State m_state = READY;
+    /// 协程上下⽂
+    ucontext_t m_ctx;
+    /// 协程栈地址
+    void *m_stack = nullptr;
+    /// 协程⼊⼝函数
+    std::function<void()> m_cb;
+    /// 本协程是否参与调度器调度
+    bool m_runInScheduler;
+};
 
 
 int main() {
-    ucontext_t context;
-    getcontext(&context);
-    cout << "Hello, World!" << endl;
-    setcontext(&context);
+
     return 0;
 }
