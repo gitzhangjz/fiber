@@ -19,6 +19,7 @@
         "vector": "cpp",
         "chrono": "cpp",
         "string_view": "cpp",
-        "iostream": "cpp"
+        "iostream": "cpp",
+        "memory": "cpp"
     }
 }
